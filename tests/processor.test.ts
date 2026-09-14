@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AI_USES, FLOW, ITEMS, PREDICTION, type VariantKey } from '../src/items.js'
+import { AI_USES, FLOW, ITEMS, PREDICTION, SECURITY_LEVEL_SURE, securityQuestionTitle, type VariantKey } from '../src/items.js'
 import { processRows } from '../src/processor.js'
 
 const date = '2026-09-13T12:00:00.000Z'
@@ -15,7 +15,7 @@ function row(email: string, variant: VariantKey, code = '2-T1-S1') {
   }
   ITEMS[v.texto].forEach((item, i) => {
     answers[item.titulo] = item.opciones[i < 4 ? 0 : 1].t
-    answers[`Seguridad en la pregunta ${i + 1}`] = 'Seguro'
+    answers[securityQuestionTitle(i + 1)] = SECURITY_LEVEL_SURE
   })
   return { email, variant, answers }
 }
@@ -52,7 +52,7 @@ describe('procesador Taller 1', () => {
       const b = row('x@x.org', 'B-con')
       if (mutation === 'sex') b.answers.Sexo = 'Hombre'
       if (mutation === 'code') b.answers['Código'] = '2-T1-S2'
-      if (mutation === 'answer') b.answers['Seguridad en la pregunta 1'] = ''
+      if (mutation === 'answer') b.answers[securityQuestionTitle(1)] = ''
       expect(processRows([a, b], date).rooms['2'].quality.inconsistent).toBe(1)
     }
   })
@@ -70,5 +70,16 @@ describe('procesador Taller 1', () => {
 describe('estrategia IA', () => {
   it('reconoce las opciones literales del formulario', () => {
     expect(AI_USES.length).toBe(6)
+  })
+})
+
+describe('niveles de seguridad', () => {
+  it('acepta etiquetas nuevas y legadas', () => {
+    const legacy = row('legacy@x.org', 'A-sin')
+    const modern = row('modern@x.org', 'A-sin')
+    legacy.answers[securityQuestionTitle(1)] = 'Seguro'
+    modern.answers[securityQuestionTitle(1)] = SECURITY_LEVEL_SURE
+    expect(processRows([legacy, row('legacy@x.org', 'B-con')], date).rooms['2'].pairs).toHaveLength(1)
+    expect(processRows([modern, row('modern@x.org', 'B-con')], date).rooms['2'].pairs).toHaveLength(1)
   })
 })

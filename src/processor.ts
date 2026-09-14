@@ -3,7 +3,9 @@ import {
   FLOW,
   ITEMS,
   PREDICTION,
-  SECURITY_LEVELS,
+  normalizeSecurityLevel,
+  resolveSecurityAnswer,
+  SECURITY_LEVEL_SURE,
   VARIANTS,
   type VariantKey,
 } from './items.js'
@@ -126,13 +128,13 @@ export function processRows(rows: SubmissionRow[], generatedAt: string): Process
       for (let i = 0; i < ITEMS[v.texto].length; i++) {
         const item = ITEMS[v.texto][i]
         const answer = item.opciones.find((o) => o.t === a[item.titulo])
-        const security = a[`Seguridad en la pregunta ${i + 1}`]
-        if (!answer || !SECURITY_LEVELS.includes(security as (typeof SECURITY_LEVELS)[number])) {
+        const security = normalizeSecurityLevel(resolveSecurityAnswer(a, i + 1))
+        if (!answer || !security) {
           invalid = true
           break
         }
         if (answer.c) trial.score++
-        if (security === 'Seguro') {
+        if (security === SECURITY_LEVEL_SURE) {
           if (answer.c) trial.sureCorrect++
           else trial.sureWrong++
         }

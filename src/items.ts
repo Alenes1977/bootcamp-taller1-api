@@ -3,7 +3,37 @@
 export const PREDICTION =
   'De las 6 preguntas que vas a responder a continuación, ¿cuántas crees que vas a acertar?'
 
-export const SECURITY_LEVELS = ['Seguro', 'Lo dudo', 'He adivinado'] as const
+export const SECURITY_LEVEL_SURE = 'Seguro/a de haber acertado'
+export const SECURITY_LEVEL_DOUBT = 'Con dudas'
+export const SECURITY_LEVEL_GUESS = 'Respondí casi al azar'
+
+export const SECURITY_LEVELS = [SECURITY_LEVEL_SURE, SECURITY_LEVEL_DOUBT, SECURITY_LEVEL_GUESS] as const
+
+/** Etiquetas del formulario anterior (seguimos aceptándolas al procesar). */
+export const LEGACY_SECURITY_LEVELS: Record<string, (typeof SECURITY_LEVELS)[number]> = {
+  Seguro: SECURITY_LEVEL_SURE,
+  'Lo dudo': SECURITY_LEVEL_DOUBT,
+  'He adivinado': SECURITY_LEVEL_GUESS,
+}
+
+export function securityQuestionTitle(n: number): string {
+  return `¿Cómo de seguro/a estás con tu respuesta anterior? (${n}/6)`
+}
+
+export function normalizeSecurityLevel(value: string): (typeof SECURITY_LEVELS)[number] | null {
+  const trimmed = value.trim()
+  if ((SECURITY_LEVELS as readonly string[]).includes(trimmed)) return trimmed as (typeof SECURITY_LEVELS)[number]
+  return LEGACY_SECURITY_LEVELS[trimmed] ?? null
+}
+
+export function resolveSecurityAnswer(answers: Record<string, string>, n: number): string {
+  const keys = [securityQuestionTitle(n), `Seguridad en la pregunta ${n}`]
+  for (const key of keys) {
+    const raw = answers[key]?.trim()
+    if (raw) return raw
+  }
+  return ''
+}
 
 export type TextKey = 'A' | 'B'
 export type VariantKey = 'A-sin' | 'A-con' | 'B-sin' | 'B-con'

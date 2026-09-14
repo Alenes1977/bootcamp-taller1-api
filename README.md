@@ -83,7 +83,7 @@ Etiquetas de preguntas que deben coincidir con Google Forms / `items-comprobacio
 - `Sexo`
 - `De las 6 preguntas que vas a responder a continuación, ¿cuántas crees que vas a acertar?`
 - Títulos literales de los 6 ítems
-- `Seguridad en la pregunta 1` … `6`
+- `¿Cómo de seguro/a estás con tu respuesta anterior? (1/6)` … `(6/6)` (acepta también `Seguridad en la pregunta 1` … `6`)
 - `¿Cuál de estos se parece más a lo que hiciste de verdad?`
 
 ## Integración con la app de conducción
