@@ -25,11 +25,24 @@ export interface TallyWebhookPayload {
   }
 }
 
+export interface TallyApiQuestion {
+  id: string
+  type: string
+  title?: string | null
+  fields?: { title?: string | null }[]
+}
+
+export interface TallyApiResponse {
+  questionId: string
+  answer: unknown
+}
+
 export interface TallySubmissionListResponse {
   page: number
   limit: number
-  total: number
+  total?: number
   hasMore: boolean
+  questions?: TallyApiQuestion[]
   submissions: TallySubmissionRecord[]
 }
 
@@ -37,5 +50,7 @@ export interface TallySubmissionRecord {
   id: string
   formId: string
   createdAt: string
-  fields: TallyField[]
+  submittedAt?: string
+  fields?: TallyField[]
+  responses?: TallyApiResponse[]
 }

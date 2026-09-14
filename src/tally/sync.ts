@@ -1,8 +1,9 @@
 import { config, variantForFormId } from '../config.js'
 import { upsertSubmission } from '../db.js'
 import type { VariantKey } from '../items.js'
+import { apiResponsesToFields } from './apiToFields.js'
 import { extractEmail, fieldsToAnswers } from './parseFields.js'
-import type { TallySubmissionListResponse, TallySubmissionRecord } from './types.js'
+import type { TallyField, TallySubmissionListResponse, TallySubmissionRecord } from './types.js'
 
 export async function fetchFormSubmissions(formId: string, page = 1, limit = 100): Promise<TallySubmissionListResponse> {
   const url = new URL(`https://api.tally.so/forms/${formId}/submissions`)
@@ -32,7 +33,7 @@ export async function syncAllForms(): Promise<{ inserted: number; skipped: numbe
     while (hasMore) {
       const batch = await fetchFormSubmissions(formId, page)
       for (const submission of batch.submissions) {
-        const saved = storeTallySubmission(submission, variant)
+        const saved = storeTallySubmission(submission, variant, batch.questions)
         if (saved) {
           inserted++
           forms[variant]++
@@ -46,14 +47,24 @@ export async function syncAllForms(): Promise<{ inserted: number; skipped: numbe
   return { inserted, skipped, forms }
 }
 
+function submissionFields(
+  submission: Pick<TallySubmissionRecord, 'fields' | 'responses'>,
+  questions?: TallySubmissionListResponse['questions'],
+): TallyField[] {
+  if (submission.fields?.length) return submission.fields
+  return apiResponsesToFields(submission.responses, questions)
+}
+
 export function storeTallySubmission(
-  submission: Pick<TallySubmissionRecord, 'id' | 'formId' | 'createdAt' | 'fields'>,
+  submission: Pick<TallySubmissionRecord, 'id' | 'formId' | 'createdAt' | 'submittedAt' | 'fields' | 'responses'>,
   variantHint?: VariantKey,
+  questions?: TallySubmissionListResponse['questions'],
 ): boolean {
   const variant = variantHint ?? variantForFormId(submission.formId)
   if (!variant) return false
-  const answers = fieldsToAnswers(submission.fields)
-  const email = extractEmail(submission.fields, answers)
+  const fields = submissionFields(submission, questions)
+  const answers = fieldsToAnswers(fields)
+  const email = extractEmail(fields, answers)
   if (email) answers.email = email
   return upsertSubmission({
     submissionId: submission.id,
@@ -61,6 +72,6 @@ export function storeTallySubmission(
     variant,
     email,
     answers,
-    receivedAt: submission.createdAt,
+    receivedAt: submission.submittedAt ?? submission.createdAt,
   })
 }

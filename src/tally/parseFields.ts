@@ -3,12 +3,15 @@ import type { TallyField } from './types.js'
 function resolveChoiceText(field: TallyField): string {
   const { value, options } = field
   if (typeof value === 'string' || typeof value === 'number') return String(value)
-  if (!Array.isArray(value) || !options?.length) return ''
-  const selected = value[0]
-  if (typeof selected === 'string') {
-    const match = options.find((o) => o.id === selected)
-    return match?.text ?? ''
+  if (Array.isArray(value)) {
+    const selected = value[0]
+    if (typeof selected === 'string') {
+      const match = options?.find((o) => o.id === selected)
+      return match?.text ?? selected
+    }
+    if (typeof selected === 'number') return String(selected)
   }
+  if (!options?.length) return ''
   return ''
 }
 
