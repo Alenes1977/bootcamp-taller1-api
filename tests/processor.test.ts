@@ -4,7 +4,7 @@ import { processRows } from '../src/processor.js'
 
 const date = '2026-09-13T12:00:00.000Z'
 
-function row(email: string, variant: VariantKey, code = 'A01-T1-S1') {
+function row(email: string, variant: VariantKey, code = '2-T1-S1') {
   const v = { 'A-sin': { texto: 'A' as const, condicion: 'sinIA' as const }, 'A-con': { texto: 'A' as const, condicion: 'conIA' as const }, 'B-sin': { texto: 'B' as const, condicion: 'sinIA' as const }, 'B-con': { texto: 'B' as const, condicion: 'conIA' as const } }[variant]
   const flowKey = v.condicion === 'conIA' ? 'conIA' : 'sinIA'
   const answers: Record<string, string> = {
@@ -22,7 +22,7 @@ function row(email: string, variant: VariantKey, code = 'A01-T1-S1') {
 
 describe('procesador Taller 1', () => {
   it('corrige por texto, empareja y excluye identidad del JSON', () => {
-    const result = processRows([row(' Test@example.org ', 'A-sin'), row('test@example.org', 'B-con')], date).rooms.A01
+    const result = processRows([row(' Test@example.org ', 'A-sin'), row('test@example.org', 'B-con')], date).rooms['2']
     expect(result.pairs[0].with).toEqual({ score: 4, predicted: 5, sureCorrect: 4, sureWrong: 2 })
     expect(result.participants).toBe(1)
     expect(JSON.stringify(result)).not.toContain('example.org')
@@ -42,8 +42,8 @@ describe('procesador Taller 1', () => {
       date,
     )
     expect(result.unassigned).toBe(1)
-    expect(result.rooms.A01.quality).toEqual({ duplicates: 1, incomplete: 1, inconsistent: 1, missingIdentity: 1 })
-    expect(result.rooms.A01.pairs).toHaveLength(0)
+    expect(result.rooms['2'].quality).toEqual({ duplicates: 1, incomplete: 1, inconsistent: 1, missingIdentity: 1 })
+    expect(result.rooms['2'].pairs).toHaveLength(0)
   })
 
   it('rechaza sexo y códigos distintos, y respuestas vacías', () => {
@@ -51,9 +51,9 @@ describe('procesador Taller 1', () => {
       const a = row('x@x.org', 'A-sin')
       const b = row('x@x.org', 'B-con')
       if (mutation === 'sex') b.answers.Sexo = 'Hombre'
-      if (mutation === 'code') b.answers['Código'] = 'A01-T1-S2'
+      if (mutation === 'code') b.answers['Código'] = '2-T1-S2'
       if (mutation === 'answer') b.answers['Seguridad en la pregunta 1'] = ''
-      expect(processRows([a, b], date).rooms.A01.quality.inconsistent).toBe(1)
+      expect(processRows([a, b], date).rooms['2'].quality.inconsistent).toBe(1)
     }
   })
 
@@ -61,7 +61,7 @@ describe('procesador Taller 1', () => {
     const a = row('x@x.org', 'A-sin')
     const b = row('x@x.org', 'B-con')
     b.answers[FLOW.conIA[0].titulo] = 'Texto privado'
-    const result = processRows([a, b], date).rooms.A01
+    const result = processRows([a, b], date).rooms['2']
     expect(result.pairs[0].strategy).toBe('Otro flujo')
     expect(JSON.stringify(result)).not.toContain('Texto privado')
   })

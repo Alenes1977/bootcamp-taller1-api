@@ -50,7 +50,7 @@ export interface ProcessOutput {
   unassigned: number
 }
 
-const CODE_RE = /^A(0[1-9]|1[0-2])-T1-S[12]$/
+const CODE_RE = /^(2|4|5|6|8|9|101|102|108|109)-T1-S[12]$/
 const SEXES = ['Mujer', 'Hombre'] as const
 
 export function processRows(rows: SubmissionRow[], generatedAt: string): ProcessOutput {
@@ -64,7 +64,7 @@ export function processRows(rows: SubmissionRow[], generatedAt: string): Process
       unassigned++
       continue
     }
-    const room = code.slice(0, 3)
+    const room = code.replace(/-T1-S[12]$/, '')
     if (!rooms[room]) {
       rooms[room] = emptyRoom(room, generatedAt)
     }
