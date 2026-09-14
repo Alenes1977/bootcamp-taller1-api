@@ -202,6 +202,14 @@ export const FLOW = {
         'Casi no usé la IA: estudié prácticamente como lo habría hecho sin ella.',
       ],
     },
+    {
+      titulo: '¿Llegaste a leer el texto completo en algún momento?',
+      opciones: ['Sí', 'Solo algunas partes', 'No'],
+    },
+    {
+      titulo: '¿Comprobaste en el texto algo que te hubiera dicho la IA?',
+      opciones: ['Sí, varias veces', 'Sí, alguna vez', 'No'],
+    },
   ],
   sinIA: [
     {
@@ -218,3 +226,8 @@ export const FLOW = {
 } as const
 
 export const AI_USES = FLOW.conIA[0].opciones
+export const READ_FULL_OPTIONS = FLOW.conIA[1].opciones
+export const VERIFY_AI_OPTIONS = FLOW.conIA[2].opciones
+export const STUDY_NO_AI = FLOW.sinIA[0].opciones
+export type ReadFullAnswer = (typeof READ_FULL_OPTIONS)[number]
+export type VerifyAiAnswer = (typeof VERIFY_AI_OPTIONS)[number]

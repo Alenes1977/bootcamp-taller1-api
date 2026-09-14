@@ -23,7 +23,18 @@ function row(email: string, variant: VariantKey, code = '2-T1-S1') {
 describe('procesador Taller 1', () => {
   it('corrige por texto, empareja y excluye identidad del JSON', () => {
     const result = processRows([row(' Test@example.org ', 'A-sin'), row('test@example.org', 'B-con')], date).rooms['2']
-    expect(result.pairs[0].with).toEqual({ score: 4, predicted: 5, sureCorrect: 4, sureWrong: 2 })
+    expect(result.pairs[0].with).toEqual({
+      score: 4,
+      predicted: 5,
+      sureCorrect: 4,
+      sureWrong: 2,
+      doubtCorrect: 0,
+      doubtWrong: 0,
+      guessCorrect: 0,
+      guessWrong: 0,
+      items: [true, true, true, true, false, false],
+    })
+    expect(result.pairs[0].studyMethod).toBe(FLOW.sinIA[0].opciones[0])
     expect(result.participants).toBe(1)
     expect(JSON.stringify(result)).not.toContain('example.org')
   })
@@ -70,6 +81,22 @@ describe('procesador Taller 1', () => {
 describe('estrategia IA', () => {
   it('reconoce las opciones literales del formulario', () => {
     expect(AI_USES.length).toBe(6)
+  })
+})
+
+describe('datos ampliados del taller', () => {
+  it('guarda lectura, comprobación y estudio sin IA cuando existen', () => {
+    const a = row('extra@x.org', 'A-sin')
+    const b = row('extra@x.org', 'B-con')
+    b.answers[FLOW.conIA[1].titulo] = 'Sí'
+    b.answers[FLOW.conIA[2].titulo] = 'No'
+    a.answers[FLOW.sinIA[0].titulo] = FLOW.sinIA[0].opciones[3]
+    const pair = processRows([a, b], date).rooms['2'].pairs[0]
+    expect(pair.readFull).toBe('Sí')
+    expect(pair.verifiedAi).toBe('No')
+    expect(pair.studyMethod).toBe(FLOW.sinIA[0].opciones[3])
+    expect(pair.with.doubtCorrect + pair.with.guessWrong).toBeGreaterThanOrEqual(0)
+    expect(pair.with.items).toHaveLength(6)
   })
 })
 

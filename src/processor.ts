@@ -3,11 +3,18 @@ import {
   FLOW,
   ITEMS,
   PREDICTION,
+  READ_FULL_OPTIONS,
+  STUDY_NO_AI,
+  VERIFY_AI_OPTIONS,
   normalizeSecurityLevel,
   resolveSecurityAnswer,
+  SECURITY_LEVEL_DOUBT,
+  SECURITY_LEVEL_GUESS,
   SECURITY_LEVEL_SURE,
   VARIANTS,
+  type ReadFullAnswer,
   type VariantKey,
+  type VerifyAiAnswer,
 } from './items.js'
 
 export interface Trial {
@@ -15,11 +22,19 @@ export interface Trial {
   predicted: number
   sureCorrect: number
   sureWrong: number
+  doubtCorrect: number
+  doubtWrong: number
+  guessCorrect: number
+  guessWrong: number
+  items: boolean[]
 }
 
 export interface ProcessedPair {
   sex: 'Mujer' | 'Hombre'
   strategy: string
+  studyMethod: string
+  readFull?: ReadFullAnswer
+  verifiedAi?: VerifyAiAnswer
   without: Trial
   with: Trial
 }
@@ -113,7 +128,13 @@ export function processRows(rows: SubmissionRow[], generatedAt: string): Process
       continue
     }
 
-    const pair: ProcessedPair = { sex: sexes[0] as 'Mujer' | 'Hombre', strategy: '', without: emptyTrial(), with: emptyTrial() }
+    const pair: ProcessedPair = {
+      sex: sexes[0] as 'Mujer' | 'Hombre',
+      strategy: '',
+      studyMethod: '',
+      without: emptyTrial(),
+      with: emptyTrial(),
+    }
     let invalid = false
 
     for (let index = 0; index < records.length; index++) {
@@ -124,7 +145,8 @@ export function processRows(rows: SubmissionRow[], generatedAt: string): Process
         invalid = true
         break
       }
-      const trial: Trial = { score: 0, predicted: Number(pred), sureCorrect: 0, sureWrong: 0 }
+      const trial = emptyTrial()
+      trial.predicted = Number(pred)
       for (let i = 0; i < ITEMS[v.texto].length; i++) {
         const item = ITEMS[v.texto][i]
         const answer = item.opciones.find((o) => o.t === a[item.titulo])
@@ -133,10 +155,18 @@ export function processRows(rows: SubmissionRow[], generatedAt: string): Process
           invalid = true
           break
         }
-        if (answer.c) trial.score++
+        const correct = Boolean(answer.c)
+        trial.items.push(correct)
+        if (correct) trial.score++
         if (security === SECURITY_LEVEL_SURE) {
-          if (answer.c) trial.sureCorrect++
+          if (correct) trial.sureCorrect++
           else trial.sureWrong++
+        } else if (security === SECURITY_LEVEL_DOUBT) {
+          if (correct) trial.doubtCorrect++
+          else trial.doubtWrong++
+        } else if (security === SECURITY_LEVEL_GUESS) {
+          if (correct) trial.guessCorrect++
+          else trial.guessWrong++
         }
       }
       if (invalid) break
@@ -148,8 +178,20 @@ export function processRows(rows: SubmissionRow[], generatedAt: string): Process
           break
         }
         pair.strategy = (AI_USES as readonly string[]).includes(use) ? use : 'Otro flujo'
+        const readFull = a[FLOW.conIA[1].titulo]?.trim()
+        const verifiedAi = a[FLOW.conIA[2].titulo]?.trim()
+        if (readFull && (READ_FULL_OPTIONS as readonly string[]).includes(readFull)) {
+          pair.readFull = readFull as ReadFullAnswer
+        }
+        if (verifiedAi && (VERIFY_AI_OPTIONS as readonly string[]).includes(verifiedAi)) {
+          pair.verifiedAi = verifiedAi as VerifyAiAnswer
+        }
       } else {
         pair.without = trial
+        const method = a[FLOW.sinIA[0].titulo]?.trim()
+        if (method) {
+          pair.studyMethod = (STUDY_NO_AI as readonly string[]).includes(method) ? method : 'Otro método'
+        }
       }
     }
 
@@ -173,7 +215,17 @@ function emptyRoom(roomId: string, generatedAt: string): RoomResults {
 }
 
 function emptyTrial(): Trial {
-  return { score: 0, predicted: 0, sureCorrect: 0, sureWrong: 0 }
+  return {
+    score: 0,
+    predicted: 0,
+    sureCorrect: 0,
+    sureWrong: 0,
+    doubtCorrect: 0,
+    doubtWrong: 0,
+    guessCorrect: 0,
+    guessWrong: 0,
+    items: [],
+  }
 }
 
 export function getRoomResults(allRows: SubmissionRow[], roomId: string, generatedAt: string): RoomResults {
