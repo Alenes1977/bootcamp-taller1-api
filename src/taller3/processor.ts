@@ -61,24 +61,46 @@ export interface RoomResultsT3 {
 /**
  * De lo que Tally devuelve a la letra del veredicto.
  *
- * El texto de las opciones empieza por su letra —«a · Falso o engañoso — …»—,
- * así que eso es lo primero que se mira. Si alguien reordena o reescribe el
- * formulario y se pierde el prefijo, queda la segunda vía: el nombre del
- * veredicto, que está fijado en el diseño y se imprime en la hoja de
- * verificación.
+ * Tally no manda letras: manda el **texto** de la opción elegida, y en el
+ * formulario las cuatro van sin prefijo —la a, la b, la c y la d son el orden en
+ * que están puestas, no algo que el alumno escriba—. Así que lo que identifica
+ * al veredicto es su nombre, que está fijado en el diseño y se imprime en la
+ * hoja de verificación: «falso o engañoso», «sospechoso», «verdadero o
+ * respaldado», «no verificado».
+ *
+ * No se usa la posición de la opción, aunque el orden sea el significado, por
+ * dos razones. Una, que la vía de recuperación por API de Tally devuelve el
+ * texto sin la lista de opciones, así que la posición no siempre está; y dos,
+ * que si alguien reordenase las opciones creyendo que es cosmético, todos los
+ * veredictos se invertirían en silencio. Con el nombre, un cambio de orden es
+ * inofensivo y un cambio de texto se ve: el fragmento queda en blanco en la
+ * matriz.
+ *
+ * Se acepta además el prefijo «a · …» por si algún día se escribe en el
+ * formulario.
  */
 export function letraDeRespuesta(texto: string | undefined): Letra | null {
-  const valor = String(texto ?? '').trim().toLowerCase()
+  const valor = normalizar(texto)
   if (!valor) return null
 
   const prefijo = /^([abcd])\s*(?:[·.)\-:]|\s)/.exec(valor)
   if (prefijo) return prefijo[1] as Letra
 
-  if (valor.includes('falso o engañoso')) return 'a'
+  if (valor.includes('falso o enganoso')) return 'a'
   if (valor.includes('sospechoso')) return 'b'
   if (valor.includes('verdadero o respaldado')) return 'c'
   if (valor.includes('no verificado')) return 'd'
   return null
+}
+
+/** Minúsculas, sin acentos y con los espacios colapsados. */
+function normalizar(texto: string | undefined): string {
+  return String(texto ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 /** «A7», «A7.», «A7 · …» → 7. Cualquier otra etiqueta no es un fragmento. */
@@ -106,6 +128,36 @@ function veredictosDeRespuesta(answers: Record<string, string>): (Letra | null)[
     veredictos[numero - 1] = letraDeRespuesta(valor)
   }
   return veredictos
+}
+
+/**
+ * Qué ha entendido el servicio de un envío concreto.
+ *
+ * Existe para la respuesta de prueba: se manda una desde el enlace de un aula y
+ * se mira aquí si el código llegó relleno, si el equipo se reconoció y si las
+ * veinte opciones se tradujeron a su letra. `sinMapear` es la lista de los
+ * textos que el servicio no supo interpretar, con su pregunta, que es
+ * exactamente lo que habría que corregir en el formulario.
+ */
+export function diagnosticarEnvio(row: SubmissionRowT3): {
+  codigo: string
+  equipo: number | null
+  veredictos: (Letra | null)[]
+  sinMapear: string[]
+} {
+  const sinMapear: string[] = []
+  for (const [etiqueta, valor] of Object.entries(row.answers)) {
+    if (numeroDeFragmento(etiqueta) === null) continue
+    if (String(valor).trim() && letraDeRespuesta(valor) === null) {
+      sinMapear.push(`${etiqueta}: ${valor}`)
+    }
+  }
+  return {
+    codigo: String(row.answers['Código'] ?? row.answers.codigo ?? '').trim().toUpperCase(),
+    equipo: equipoDeRespuesta(row.answers),
+    veredictos: veredictosDeRespuesta(row.answers),
+    sinMapear,
+  }
 }
 
 export function puntuarEquipo(equipo: EquipoVeredictos): PuntuacionEquipo {

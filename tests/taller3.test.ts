@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { fieldsToAnswers } from '../src/tally/parseFields.js'
+import type { TallyField } from '../src/tally/types.js'
 import {
   clasificar,
+  diagnosticarEnvio,
   getRoomResultsT3,
   letraDeRespuesta,
   numeroDeFragmento,
@@ -10,12 +13,16 @@ import { DEFECTUOSOS, FRAGMENTOS, type Letra } from '../src/taller3/solucionario
 
 const fecha = '2026-10-16T11:07:00.000Z'
 
-/** El texto exacto de las cuatro opciones, tal como lo devuelve Tally. */
+/**
+ * El texto de las cuatro opciones tal como está puesto en el formulario y tal
+ * como Tally lo devuelve: sin prefijo de letra. La a, la b, la c y la d son el
+ * orden en que están, no algo que el alumno escriba.
+ */
 const OPCION: Record<Letra, string> = {
-  a: 'a · Falso o engañoso — hemos localizado evidencia que lo contradice o que muestra que la conclusión no se sostiene',
-  b: 'b · Sospechoso — hemos encontrado indicios concretos, pero la comprobación es insuficiente',
-  c: 'c · Verdadero o respaldado — hemos localizado evidencia que sostiene lo afirmado',
-  d: 'd · No verificado — no hemos hecho una comprobación suficiente para emitir un juicio',
+  a: 'Falso o engañoso — hemos localizado evidencia que lo contradice o que muestra que la conclusión no se sostiene',
+  b: 'Sospechoso — hemos encontrado indicios concretos, pero la comprobación es insuficiente',
+  c: 'Verdadero o respaldado — hemos localizado evidencia que sostiene lo afirmado',
+  d: 'No verificado — no hemos hecho una comprobación suficiente para emitir un juicio',
 }
 
 function envio(
@@ -36,14 +43,29 @@ function envio(
 const todos = (letra: Letra) => Array.from({ length: FRAGMENTOS }, () => letra)
 
 describe('lectura de lo que manda Tally', () => {
-  it('saca la letra del texto completo de la opción', () => {
+  it('saca la letra del texto de la opción, que es lo único que Tally manda', () => {
     expect(letraDeRespuesta(OPCION.a)).toBe('a')
+    expect(letraDeRespuesta(OPCION.b)).toBe('b')
+    expect(letraDeRespuesta(OPCION.c)).toBe('c')
     expect(letraDeRespuesta(OPCION.d)).toBe('d')
   })
 
-  it('aguanta que alguien reescriba el prefijo, mientras quede el nombre del veredicto', () => {
+  it('le basta con el nombre del veredicto, sin la explicación', () => {
     expect(letraDeRespuesta('Verdadero o respaldado')).toBe('c')
     expect(letraDeRespuesta('Sospechoso')).toBe('b')
+  })
+
+  it('no depende de acentos, mayúsculas ni del tipo de guion', () => {
+    expect(letraDeRespuesta('FALSO O ENGAÑOSO - hemos localizado evidencia')).toBe('a')
+    expect(letraDeRespuesta('falso o enganoso, sin acento')).toBe('a')
+    expect(letraDeRespuesta('  No   verificado  ')).toBe('d')
+  })
+
+  it('acepta el prefijo de letra por si algún día se escribe en el formulario', () => {
+    expect(letraDeRespuesta('a · Falso o engañoso — lo que sea')).toBe('a')
+  })
+
+  it('deja el fragmento en blanco cuando no reconoce el texto', () => {
     expect(letraDeRespuesta('')).toBeNull()
     expect(letraDeRespuesta('No lo sabemos')).toBeNull()
   })
@@ -140,5 +162,58 @@ describe('procesador Taller 3', () => {
   it('no incluye correos ni texto libre en lo que se publica', () => {
     const json = JSON.stringify(getRoomResultsT3([envio(1, todos('c'))], '2', fecha))
     expect(json).not.toContain('@')
+  })
+})
+
+describe('de lo que manda Tally a la matriz, sin atajos', () => {
+  /** Un envío como el que llega por webhook: la opción viaja por id. */
+  function campos(equipo: number, letras: Letra[]): TallyField[] {
+    const opciones = (['a', 'b', 'c', 'd'] as Letra[]).map((letra) => ({
+      id: `opt-${letra}`,
+      text: OPCION[letra],
+    }))
+    return [
+      { key: 'hidden', label: 'codigo', type: 'HIDDEN_FIELDS', value: '2-T3-EQ' },
+      {
+        key: 'equipo',
+        label: 'Número de vuestro equipo',
+        type: 'DROPDOWN',
+        value: [`opt-e${equipo}`],
+        options: [{ id: `opt-e${equipo}`, text: String(equipo) }],
+      },
+      { key: 'email', label: 'Email', type: 'INPUT_EMAIL', value: 'equipo@alumni.unav.es' },
+      ...letras.map((letra, indice) => ({
+        key: `q${indice}`,
+        label: `A${indice + 1}`,
+        type: 'MULTIPLE_CHOICE',
+        value: [`opt-${letra}`],
+        options: opciones,
+      })),
+    ]
+  }
+
+  it('traduce un envío real a sus veinte veredictos', () => {
+    const letras = todos('c')
+    letras[6] = 'a'
+    letras[10] = 'b'
+    letras[19] = 'd'
+    const answers = fieldsToAnswers(campos(4, letras))
+    const aula = getRoomResultsT3([{ email: '', answers, receivedAt: fecha }], '2', fecha)
+
+    expect(aula.entregados).toBe(1)
+    expect(aula.equipos[0].equipo).toBe(4)
+    expect(aula.equipos[0].veredictos).toEqual(letras)
+    expect(aula.quality.incompletos).toBe(0)
+  })
+
+  it('el diagnóstico enseña lo que el servicio entendió y lo que no', () => {
+    const answers = fieldsToAnswers(campos(7, todos('c')))
+    answers.A3 = 'Ni idea, esto no es una de las cuatro'
+    const visto = diagnosticarEnvio({ email: '', answers, receivedAt: fecha })
+
+    expect(visto.codigo).toBe('2-T3-EQ')
+    expect(visto.equipo).toBe(7)
+    expect(visto.veredictos[2]).toBeNull()
+    expect(visto.sinMapear).toEqual(['A3: Ni idea, esto no es una de las cuatro'])
   })
 })

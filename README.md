@@ -38,6 +38,7 @@ Alumno → Tally ─┬─ POST /webhook/tally → SQLite ─┬─ GET /aulas/2
 | GET | `/aulas/:roomId/taller3/resultados` | Taller 3 · veredictos por equipo y clasificación |
 | GET | `/aulas` | Aulas con envíos registrados, separadas por taller |
 | POST | `/admin/sync` | Sincroniza desde Tally API (`Authorization: Bearer ADMIN_API_KEY`) |
+| GET | `/admin/taller3/diagnostico` | Qué entendió el servicio de los últimos envíos del Taller 3 (admin) |
 | GET | `/admin/submissions` | Últimos envíos (admin) |
 
 ## Variables de entorno
@@ -133,9 +134,20 @@ Tres decisiones del procesador que conviene conocer:
   completa. El tutor ve el recuento y puede preguntar al equipo cuál vale.
 - **Una entrega incompleta entra igual**, con `null` en los fragmentos que falten, y suma uno a
   `incompletos`. La matriz pinta el hueco.
-- **La letra del veredicto se lee del prefijo** del texto de la opción (`a · Falso o engañoso…`).
-  Si alguien reescribe el formulario y pierde el prefijo, queda la segunda vía: el nombre del
-  veredicto. Si se pierden las dos, el fragmento queda en `null` y se ve en la matriz.
+- **La letra del veredicto se deduce del nombre** que lleva la opción: «falso o engañoso»,
+  «sospechoso», «verdadero o respaldado», «no verificado». Tally no manda letras, manda el texto
+  de la opción elegida, y en el formulario las cuatro van sin prefijo: la a, la b, la c y la d son
+  el orden en que están puestas. La comparación ignora acentos, mayúsculas y espacios de más, y
+  acepta también un prefijo `a · …` por si algún día se escribe.
+
+  No se usa la posición de la opción, aunque el orden sea el significado, por dos razones: la vía
+  de recuperación por API de Tally devuelve el texto sin la lista de opciones, así que la posición
+  no siempre está; y si alguien reordenase las opciones creyendo que es cosmético, todos los
+  veredictos se invertirían en silencio. Con el nombre, reordenar es inofensivo y reescribir se
+  ve: el fragmento queda en blanco en la matriz.
+
+  Para comprobarlo con una respuesta de prueba está `GET /admin/taller3/diagnostico`, que enseña
+  qué entendió el servicio de cada envío y lista en `sinMapear` los textos que no supo traducir.
 
 ## Integración con la app de conducción
 
