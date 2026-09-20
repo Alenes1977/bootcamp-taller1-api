@@ -1,5 +1,8 @@
 import type { VariantKey } from './items.js'
 
+export type WorkshopId = 'taller1' | 'taller3'
+export type VariantT3 = 'veredictos'
+
 function required(name: string): string {
   const value = process.env[name]?.trim()
   if (!value) throw new Error(`Falta la variable de entorno ${name}`)
@@ -23,6 +26,28 @@ export const config = {
     'B-sin': optional('TALLY_FORM_B_SIN'),
     'B-con': optional('TALLY_FORM_B_CON'),
   } satisfies Record<VariantKey, string>,
+  /** Taller 3: un solo formulario para las diez aulas, como el resto. */
+  formIdsT3: {
+    veredictos: optional('TALLY_FORM_T3_VEREDICTOS'),
+  } satisfies Record<VariantT3, string>,
+}
+
+/**
+ * A qué taller pertenece un formulario.
+ *
+ * El webhook es uno solo para todos los formularios del bootcamp: Tally manda
+ * el `formId` en cada envío y aquí se decide quién lo procesa. Añadir un taller
+ * es añadir una variable de entorno, no un servicio.
+ */
+export function sourceForFormId(
+  formId: string,
+): { workshop: WorkshopId; variant: string } | null {
+  const variant = variantForFormId(formId)
+  if (variant) return { workshop: 'taller1', variant }
+  for (const [nombre, id] of Object.entries(config.formIdsT3) as [VariantT3, string][]) {
+    if (id && id === formId) return { workshop: 'taller3', variant: nombre }
+  }
+  return null
 }
 
 export function variantForFormId(formId: string): VariantKey | null {
@@ -39,7 +64,22 @@ export function assertAdminKey(header: string | undefined): boolean {
 }
 
 export function hasTallyApi(): boolean {
-  return Boolean(config.tallyApiKey && Object.values(config.formIds).every(Boolean))
+  return Boolean(config.tallyApiKey) && syncableForms().length > 0
+}
+
+/** Los formularios que `POST /admin/sync` puede recorrer, taller por taller. */
+export function syncableForms(): { workshop: WorkshopId; variant: string; formId: string }[] {
+  const t1 = Object.entries(config.formIds).map(([variant, formId]) => ({
+    workshop: 'taller1' as const,
+    variant,
+    formId,
+  }))
+  const t3 = Object.entries(config.formIdsT3).map(([variant, formId]) => ({
+    workshop: 'taller3' as const,
+    variant,
+    formId,
+  }))
+  return [...t1, ...t3].filter((form) => Boolean(form.formId))
 }
 
 export function assertBootConfig(): void {

@@ -1,15 +1,17 @@
 import Database from 'better-sqlite3'
 import fs from 'node:fs'
 import path from 'node:path'
-import { config } from './config.js'
+import { config, type WorkshopId } from './config.js'
 import type { VariantKey } from './items.js'
 import type { SubmissionRow } from './processor.js'
+import type { SubmissionRowT3 } from './taller3/processor.js'
 
 export interface StoredSubmission {
   submissionId: string
   eventId: string | null
   formId: string
-  variant: VariantKey
+  workshop: WorkshopId
+  variant: string
   email: string
   answers: Record<string, string>
   receivedAt: string
@@ -35,27 +37,44 @@ export function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_submissions_variant ON submissions(variant);
   `)
+  migrateWorkshopColumn(db)
   return db
+}
+
+/**
+ * La tabla nació cuando el servicio solo conocía el Taller 1, así que todo lo
+ * que ya hay dentro es de ese taller: por eso el valor por defecto. La columna
+ * se añade en su sitio y no se toca ninguna fila existente.
+ */
+function migrateWorkshopColumn(database: Database.Database): void {
+  const columns = database.prepare('PRAGMA table_info(submissions)').all() as { name: string }[]
+  if (columns.some((column) => column.name === 'workshop')) return
+  database.exec(`
+    ALTER TABLE submissions ADD COLUMN workshop TEXT NOT NULL DEFAULT 'taller1';
+    CREATE INDEX IF NOT EXISTS idx_submissions_workshop ON submissions(workshop);
+  `)
 }
 
 export function upsertSubmission(input: {
   submissionId: string
   eventId?: string | null
   formId: string
-  variant: VariantKey
+  workshop?: WorkshopId
+  variant: string
   email: string
   answers: Record<string, string>
   receivedAt: string
 }): boolean {
   const stmt = getDb().prepare(`
-    INSERT INTO submissions (submission_id, event_id, form_id, variant, email, answers, received_at)
-    VALUES (@submissionId, @eventId, @formId, @variant, @email, @answers, @receivedAt)
+    INSERT INTO submissions (submission_id, event_id, form_id, workshop, variant, email, answers, received_at)
+    VALUES (@submissionId, @eventId, @formId, @workshop, @variant, @email, @answers, @receivedAt)
     ON CONFLICT(submission_id) DO NOTHING
   `)
   const result = stmt.run({
     submissionId: input.submissionId,
     eventId: input.eventId ?? null,
     formId: input.formId,
+    workshop: input.workshop ?? 'taller1',
     variant: input.variant,
     email: input.email,
     answers: JSON.stringify(input.answers),
@@ -66,12 +85,29 @@ export function upsertSubmission(input: {
 
 export function listSubmissionRows(): SubmissionRow[] {
   const rows = getDb()
-    .prepare('SELECT variant, email, answers FROM submissions ORDER BY received_at ASC')
+    .prepare(
+      `SELECT variant, email, answers FROM submissions
+       WHERE workshop = 'taller1' ORDER BY received_at ASC`,
+    )
     .all() as { variant: VariantKey; email: string; answers: string }[]
   return rows.map((row) => ({
     email: row.email,
     variant: row.variant,
     answers: JSON.parse(row.answers) as Record<string, string>,
+  }))
+}
+
+export function listSubmissionRowsT3(): SubmissionRowT3[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT email, answers, received_at FROM submissions
+       WHERE workshop = 'taller3' ORDER BY received_at ASC`,
+    )
+    .all() as { email: string; answers: string; received_at: string }[]
+  return rows.map((row) => ({
+    email: row.email,
+    answers: JSON.parse(row.answers) as Record<string, string>,
+    receivedAt: row.received_at,
   }))
 }
 
@@ -82,14 +118,15 @@ export function countSubmissions(): number {
 export function listStoredSubmissions(limit = 100): StoredSubmission[] {
   const rows = getDb()
     .prepare(
-      `SELECT submission_id, event_id, form_id, variant, email, answers, received_at
+      `SELECT submission_id, event_id, form_id, workshop, variant, email, answers, received_at
        FROM submissions ORDER BY received_at DESC LIMIT ?`,
     )
     .all(limit) as {
     submission_id: string
     event_id: string | null
     form_id: string
-    variant: VariantKey
+    workshop: WorkshopId
+    variant: string
     email: string
     answers: string
     received_at: string
@@ -98,6 +135,7 @@ export function listStoredSubmissions(limit = 100): StoredSubmission[] {
     submissionId: row.submission_id,
     eventId: row.event_id,
     formId: row.form_id,
+    workshop: row.workshop,
     variant: row.variant,
     email: row.email,
     answers: JSON.parse(row.answers) as Record<string, string>,

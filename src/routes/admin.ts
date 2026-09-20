@@ -31,6 +31,7 @@ export function registerAdminRoutes(router: Router): void {
       total: countSubmissions(),
       recent: listStoredSubmissions(limit).map((s) => ({
         submissionId: s.submissionId,
+        workshop: s.workshop,
         variant: s.variant,
         receivedAt: s.receivedAt,
         code: s.answers['Código'] ?? s.answers.codigo ?? '',

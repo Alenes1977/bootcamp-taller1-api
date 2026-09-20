@@ -1,5 +1,5 @@
 import type { Request, Response, Router } from 'express'
-import { config, variantForFormId } from '../config.js'
+import { config, sourceForFormId } from '../config.js'
 import { countSubmissions } from '../db.js'
 import { extractEmail, fieldsToAnswers } from '../tally/parseFields.js'
 import type { TallyWebhookPayload } from '../tally/types.js'
@@ -22,8 +22,10 @@ export function registerWebhookRoutes(router: Router): void {
       }
     }
 
-    const variant = variantForFormId(payload.data.formId)
-    if (!variant) {
+    // Un solo webhook para todos los formularios del bootcamp: el formId dice
+    // a qué taller pertenece el envío y quién lo procesará después.
+    const source = sourceForFormId(payload.data.formId)
+    if (!source) {
       res.status(202).json({ ignored: true, reason: 'formId no configurado' })
       return
     }
@@ -36,7 +38,8 @@ export function registerWebhookRoutes(router: Router): void {
       submissionId: payload.data.submissionId,
       eventId: payload.eventId,
       formId: payload.data.formId,
-      variant,
+      workshop: source.workshop,
+      variant: source.variant,
       email,
       answers,
       receivedAt: payload.data.createdAt ?? new Date().toISOString(),
@@ -45,6 +48,7 @@ export function registerWebhookRoutes(router: Router): void {
     res.status(200).json({
       ok: true,
       inserted,
+      workshop: source.workshop,
       submissionId: payload.data.submissionId,
       totalSubmissions: countSubmissions(),
     })
