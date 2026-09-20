@@ -1,5 +1,5 @@
 import express from 'express'
-import { assertBootConfig, config } from './config.js'
+import { assertBootConfig, config, formulariosConfigurados, resultadosDesde } from './config.js'
 import { getDb } from './db.js'
 import { registerAdminRoutes } from './routes/admin.js'
 import { registerResultsRoutes } from './routes/results.js'
@@ -14,7 +14,7 @@ app.use(express.json({ limit: '1mb' }))
 
 app.use((_req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', config.corsOrigin)
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
   if (_req.method === 'OPTIONS') {
     res.sendStatus(204)
@@ -24,7 +24,15 @@ app.use((_req, res, next) => {
 })
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'healthy', version: '1.0.0', service: 'bootcamp-taller1-api' })
+  res.json({
+    status: 'healthy',
+    version: '1.0.0',
+    service: 'bootcamp-taller1-api',
+    formularios: formulariosConfigurados(),
+    // Si esto es null el día del taller, las pruebas de los días previos están
+    // contando como respuestas de verdad.
+    resultadosDesde: resultadosDesde(),
+  })
 })
 
 registerWebhookRoutes(app)

@@ -16,6 +16,17 @@ function optional(name: string, fallback = ''): string {
 export const config = {
   port: Number(process.env.PORT ?? 3000),
   databasePath: optional('DATABASE_PATH', './data/taller1.db'),
+  /**
+   * Fecha ISO a partir de la cual cuentan los envíos. Lo anterior sigue en la
+   * base y no lo ve nadie.
+   *
+   * Existe porque borrar una respuesta en Tally **no** borra lo que el webhook
+   * ya entregó: sin esto, cada prueba de los días previos aparecería el día del
+   * taller como un equipo más, con su puntuación, mezclada con las de verdad.
+   * Se pone la mañana del taller y se acabó; es reversible, y no destruye los
+   * envíos de prueba, que siguen sirviendo para diagnosticar.
+   */
+  resultadosDesde: optional('RESULTADOS_DESDE'),
   tallyWebhookSecret: optional('TALLY_WEBHOOK_SECRET'),
   tallyApiKey: optional('TALLY_API_KEY'),
   adminApiKey: optional('ADMIN_API_KEY'),
@@ -65,6 +76,30 @@ export function assertAdminKey(header: string | undefined): boolean {
 
 export function hasTallyApi(): boolean {
   return Boolean(config.tallyApiKey) && syncableForms().length > 0
+}
+
+/**
+ * Cuántos formularios tiene configurado cada taller.
+ *
+ * Sin identificadores: solo dice si las variables de entorno llegaron al
+ * despliegue. Es lo primero que hay que mirar cuando un envío no aparece, y por
+ * eso va en `/health`, que es público: un formulario sin configurar hace que el
+ * webhook conteste 202 y no guarde nada.
+ */
+/** La fecha de corte, o null si no hay. Una fecha ilegible se ignora, y se avisa. */
+export function resultadosDesde(): string | null {
+  const valor = config.resultadosDesde
+  if (!valor) return null
+  if (!Number.isFinite(Date.parse(valor))) {
+    console.warn(`[config] RESULTADOS_DESDE no es una fecha ISO válida: ${valor}. Se ignora.`)
+    return null
+  }
+  return new Date(valor).toISOString()
+}
+
+export function formulariosConfigurados(): Record<WorkshopId, number> {
+  const cuenta = (ids: Record<string, string>) => Object.values(ids).filter(Boolean).length
+  return { taller1: cuenta(config.formIds), taller3: cuenta(config.formIdsT3) }
 }
 
 /** Los formularios que `POST /admin/sync` puede recorrer, taller por taller. */

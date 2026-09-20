@@ -1,6 +1,11 @@
 import type { Request, Response, Router } from 'express'
 import { assertAdminKey, hasTallyApi } from '../config.js'
-import { countSubmissions, listStoredSubmissions, listSubmissionRowsT3 } from '../db.js'
+import {
+  countSubmissions,
+  deleteSubmission,
+  listStoredSubmissions,
+  listSubmissionRowsT3,
+} from '../db.js'
 import { diagnosticarEnvio } from '../taller3/processor.js'
 import { syncAllForms } from '../tally/sync.js'
 
@@ -20,6 +25,28 @@ export function registerAdminRoutes(router: Router): void {
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : 'Error de sincronización' })
     }
+  })
+
+  /**
+   * Borra un envío concreto.
+   *
+   * Hace falta porque borrar la respuesta en Tally no borra lo que el webhook ya
+   * entregó. Para limpiar todas las pruebas de golpe es mejor `RESULTADOS_DESDE`,
+   * que no destruye nada y se puede deshacer; esto es el bisturí, para un envío
+   * suelto que llegó mal.
+   */
+  router.delete('/admin/submissions/:submissionId', (req: Request, res: Response) => {
+    if (!assertAdminKey(req.header('authorization'))) {
+      res.status(401).json({ error: 'No autorizado' })
+      return
+    }
+    const submissionId = String(req.params.submissionId)
+    const borrado = deleteSubmission(submissionId)
+    res.status(borrado ? 200 : 404).json({
+      borrado,
+      submissionId,
+      totalSubmissions: countSubmissions(),
+    })
   })
 
   // Para la respuesta de prueba del Taller 3: enseña qué ha entendido el

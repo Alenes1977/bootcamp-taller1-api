@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import fs from 'node:fs'
 import path from 'node:path'
-import { config, type WorkshopId } from './config.js'
+import { config, resultadosDesde, type WorkshopId } from './config.js'
 import type { VariantKey } from './items.js'
 import type { SubmissionRow } from './processor.js'
 import type { SubmissionRowT3 } from './taller3/processor.js'
@@ -83,13 +83,29 @@ export function upsertSubmission(input: {
   return result.changes > 0
 }
 
+/**
+ * Los envíos que cuentan: los de este taller y posteriores a la fecha de corte.
+ *
+ * El corte es lo único que separa las pruebas de los días previos de las
+ * respuestas del día, porque borrar en Tally no borra lo ya entregado. Sin
+ * `RESULTADOS_DESDE` configurado, cuentan todos, que es como estaba antes.
+ */
+const DESDE = "AND received_at >= @desde"
+
+/** Sin corte configurado, una fecha anterior a cualquier envío: no filtra nada. */
+const PRINCIPIO_DE_LOS_TIEMPOS = '0000-01-01T00:00:00.000Z'
+
+function desde(): { desde: string } {
+  return { desde: resultadosDesde() ?? PRINCIPIO_DE_LOS_TIEMPOS }
+}
+
 export function listSubmissionRows(): SubmissionRow[] {
   const rows = getDb()
     .prepare(
       `SELECT variant, email, answers FROM submissions
-       WHERE workshop = 'taller1' ORDER BY received_at ASC`,
+       WHERE workshop = 'taller1' ${DESDE} ORDER BY received_at ASC`,
     )
-    .all() as { variant: VariantKey; email: string; answers: string }[]
+    .all(desde()) as { variant: VariantKey; email: string; answers: string }[]
   return rows.map((row) => ({
     email: row.email,
     variant: row.variant,
@@ -101,9 +117,9 @@ export function listSubmissionRowsT3(): SubmissionRowT3[] {
   const rows = getDb()
     .prepare(
       `SELECT email, answers, received_at FROM submissions
-       WHERE workshop = 'taller3' ORDER BY received_at ASC`,
+       WHERE workshop = 'taller3' ${DESDE} ORDER BY received_at ASC`,
     )
-    .all() as { email: string; answers: string; received_at: string }[]
+    .all(desde()) as { email: string; answers: string; received_at: string }[]
   return rows.map((row) => ({
     email: row.email,
     answers: JSON.parse(row.answers) as Record<string, string>,
@@ -111,8 +127,22 @@ export function listSubmissionRowsT3(): SubmissionRowT3[] {
   }))
 }
 
+/** Cierra la conexión. La usan las pruebas para poder borrar su archivo. */
+export function closeDb(): void {
+  db?.close()
+  db = null
+}
+
 export function countSubmissions(): number {
   return (getDb().prepare('SELECT COUNT(*) AS n FROM submissions').get() as { n: number }).n
+}
+
+/** Borra un envío por su identificador de Tally. Devuelve si existía. */
+export function deleteSubmission(submissionId: string): boolean {
+  const result = getDb()
+    .prepare('DELETE FROM submissions WHERE submission_id = ?')
+    .run(submissionId)
+  return result.changes > 0
 }
 
 export function listStoredSubmissions(limit = 100): StoredSubmission[] {

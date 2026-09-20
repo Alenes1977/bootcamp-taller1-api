@@ -26,7 +26,14 @@ export function registerWebhookRoutes(router: Router): void {
     // a qué taller pertenece el envío y quién lo procesará después.
     const source = sourceForFormId(payload.data.formId)
     if (!source) {
-      res.status(202).json({ ignored: true, reason: 'formId no configurado' })
+      // El formId viaja de vuelta a propósito: el registro de entregas de Tally
+      // lo enseña, y así se ve de un vistazo qué identificador manda el
+      // formulario frente al que tiene configurado el servicio.
+      res.status(202).json({
+        ignored: true,
+        reason: 'formId no configurado',
+        formId: payload.data.formId,
+      })
       return
     }
 

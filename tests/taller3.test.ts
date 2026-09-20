@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { formulariosConfigurados } from '../src/config.js'
 import { fieldsToAnswers } from '../src/tally/parseFields.js'
 import type { TallyField } from '../src/tally/types.js'
 import {
@@ -215,5 +216,19 @@ describe('de lo que manda Tally a la matriz, sin atajos', () => {
     expect(visto.equipo).toBe(7)
     expect(visto.veredictos[2]).toBeNull()
     expect(visto.sinMapear).toEqual(['A3: Ni idea, esto no es una de las cuatro'])
+  })
+})
+
+describe('configuración del despliegue', () => {
+  it('cuenta los formularios de cada taller sin enseñar sus identificadores', () => {
+    const antes = process.env.TALLY_FORM_T3_VEREDICTOS
+    try {
+      const cuenta = formulariosConfigurados()
+      expect(Object.keys(cuenta).sort()).toEqual(['taller1', 'taller3'])
+      expect(JSON.stringify(cuenta)).not.toContain('yPO7qx')
+      expect(cuenta.taller3).toBeLessThanOrEqual(1)
+    } finally {
+      process.env.TALLY_FORM_T3_VEREDICTOS = antes
+    }
   })
 })

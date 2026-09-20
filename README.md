@@ -32,12 +32,13 @@ Alumno → Tally ─┬─ POST /webhook/tally → SQLite ─┬─ GET /aulas/2
 
 | Método | Ruta | Descripción |
 | --- | --- | --- |
-| GET | `/health` | Estado del servicio |
+| GET | `/health` | Estado del servicio y cuántos formularios tiene configurado cada taller |
 | POST | `/webhook/tally` | Webhook de Tally (público, verificado por firma) |
 | GET | `/aulas/:roomId/resultados` | Taller 1 · JSON procesado. Aulas `2, 4, 5, 6, 8, 9, 101, 102, 108, 109` |
 | GET | `/aulas/:roomId/taller3/resultados` | Taller 3 · veredictos por equipo y clasificación |
 | GET | `/aulas` | Aulas con envíos registrados, separadas por taller |
 | POST | `/admin/sync` | Sincroniza desde Tally API (`Authorization: Bearer ADMIN_API_KEY`) |
+| DELETE | `/admin/submissions/:submissionId` | Borra un envío suelto (admin) |
 | GET | `/admin/taller3/diagnostico` | Qué entendió el servicio de los últimos envíos del Taller 3 (admin) |
 | GET | `/admin/submissions` | Últimos envíos (admin) |
 
@@ -160,6 +161,60 @@ const json = await res.json()
 ```
 
 El JSON es compatible con `src/results/importResults.ts` del repo `talleres-Bootcamp`.
+
+## Los envíos de prueba no se borran solos
+
+**Borrar una respuesta en Tally no borra lo que el webhook ya entregó.** El envío está en esta
+base de datos desde el momento en que Tally lo mandó, y lo que se haga después en Tally no llega
+aquí. Sin nada que lo impida, cada prueba de los días previos aparece el día del taller como un
+participante más del Taller 1 o como un equipo más del Taller 3, con su puntuación, mezclada con
+las de verdad.
+
+Lo que lo impide es **`RESULTADOS_DESDE`**: una fecha ISO a partir de la cual cuentan los envíos.
+Se pone la hora de la primera mañana del bootcamp, en UTC, y lo anterior deja de contar en las dos
+rutas de lectura. No borra nada: los envíos de prueba siguen en la base para diagnosticar, y
+quitar la variable los devuelve.
+
+```env
+RESULTADOS_DESDE=2026-10-15T06:00:00Z
+```
+
+Se comprueba sin credenciales:
+
+```bash
+curl -s https://taller1.alejandronestor.eu/health
+# {"status":"healthy", …, "resultadosDesde":"2026-10-15T06:00:00.000Z"}
+```
+
+Si ahí sale `null` la mañana del taller, las pruebas están contando. Es lo primero que hay que
+mirar al empezar el día.
+
+Para un envío suelto que llegó mal —y no para limpiar las pruebas, que es trabajo de la fecha de
+corte— está el bisturí:
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $ADMIN_API_KEY"   https://taller1.alejandronestor.eu/admin/submissions/EL_SUBMISSION_ID
+```
+
+El `submissionId` sale de `GET /admin/submissions`.
+
+## Cuando un envío no aparece
+
+Por orden, y sin credenciales las dos primeras:
+
+1. `GET /health` devuelve `formularios: { taller1: 4, taller3: 1 }`. Si el taller que falla marca
+   **0**, su variable de entorno no llegó al despliegue y el webhook está contestando 202 sin
+   guardar nada. Es la causa más frecuente.
+2. En Tally, el formulario → **Integrations → Webhooks**, registro de entregas. Lo que diga ahí:
+   - **202** con `reason: formId no configurado` — el cuerpo de la respuesta trae el `formId` que
+     mandó Tally. Compáralo con el de la variable de entorno; si no coinciden, ese es el fallo.
+   - **401** — el secreto de firma de ese formulario no es el que tiene el servicio.
+   - **sin entregas** — el webhook no está activo en ese formulario, o el envío es anterior a
+     conectarlo.
+3. `GET /admin/submissions` enseña los últimos envíos guardados, con su taller. Si el envío está
+   ahí pero con el taller equivocado, el `formId` está asignado al formulario que no es.
+4. `GET /admin/taller3/diagnostico` enseña, envío a envío, qué entendió el procesador del Taller 3:
+   el código, el equipo, los veinte veredictos y, en `sinMapear`, lo que no supo traducir.
 
 ## Seguridad
 
