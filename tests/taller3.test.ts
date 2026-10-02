@@ -82,9 +82,9 @@ describe('lectura de lo que manda Tally', () => {
 describe('procesador Taller 3', () => {
   it('incluye los catorce equipos del formulario en la matriz y la clasificación', () => {
     const rows = Array.from({ length: 14 }, (_, indice) =>
-      envio(indice + 1, todos('c'), { code: '6-T3-EQ' }),
+      envio(indice + 1, todos('c')),
     )
-    const aula = getRoomResultsT3(rows, '6', fecha)
+    const aula = getRoomResultsT3(rows, '2', fecha)
     expect(aula.entregados).toBe(14)
     expect(aula.equipos.map((equipo) => equipo.equipo)).toEqual(
       Array.from({ length: 14 }, (_, indice) => indice + 1),
@@ -93,6 +93,19 @@ describe('procesador Taller 3', () => {
     expect(aula.puntuacion.every((equipo) => equipo.respondidos === 20)).toBe(true)
     expect(aula.quality.sinEquipo).toBe(0)
     expect(diagnosticarEnvio(rows[13]).equipo).toBe(14)
+  })
+
+  it('acepta las trece mesas de 006 y señala el equipo 14 sin publicar una columna inválida', () => {
+    const rows = Array.from({ length: 14 }, (_, indice) =>
+      envio(indice + 1, todos('c'), { code: '6-T3-EQ' }),
+    )
+    const aula = getRoomResultsT3(rows, '6', fecha)
+    expect(aula.entregados).toBe(13)
+    expect(aula.equipos.at(-1)?.equipo).toBe(13)
+    expect(aula.puntuacion).toHaveLength(13)
+    expect(aula.quality.sinEquipo).toBe(1)
+    expect(diagnosticarEnvio(rows[12]).equipo).toBe(13)
+    expect(diagnosticarEnvio(rows[13]).equipo).toBeNull()
   })
 
   it('sigue descartando números de equipo fuera del formulario', () => {

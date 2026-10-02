@@ -15,6 +15,11 @@ export const CODE_RE = new RegExp(`^(${ROOM_IDS.join('|')})-T3-EQ$`)
 /** Máximo del formulario compartido: incluye equipos de reserva. */
 export const EQUIPOS_POR_AULA = 14
 
+/** El aula 006 tiene trece mesas; las demás admiten hasta catorce. */
+function limiteEquipos(roomId: string): number {
+  return roomId === '6' ? 13 : EQUIPOS_POR_AULA
+}
+
 export interface SubmissionRowT3 {
   email: string
   answers: Record<string, string>
@@ -112,11 +117,11 @@ export function numeroDeFragmento(etiqueta: string): number | null {
   return numero >= 1 && numero <= FRAGMENTOS ? numero : null
 }
 
-function equipoDeRespuesta(answers: Record<string, string>): number | null {
+function equipoDeRespuesta(answers: Record<string, string>, limite: number): number | null {
   for (const [etiqueta, valor] of Object.entries(answers)) {
     if (!/equipo/i.test(etiqueta)) continue
     const numero = Number(String(valor).trim())
-    if (Number.isInteger(numero) && numero >= 1 && numero <= EQUIPOS_POR_AULA) return numero
+    if (Number.isInteger(numero) && numero >= 1 && numero <= limite) return numero
   }
   return null
 }
@@ -146,6 +151,8 @@ export function diagnosticarEnvio(row: SubmissionRowT3): {
   veredictos: (Letra | null)[]
   sinMapear: string[]
 } {
+  const codigo = String(row.answers['Código'] ?? row.answers.codigo ?? '').trim().toUpperCase()
+  const roomId = CODE_RE.exec(codigo)?.[1] ?? ''
   const sinMapear: string[] = []
   for (const [etiqueta, valor] of Object.entries(row.answers)) {
     if (numeroDeFragmento(etiqueta) === null) continue
@@ -154,8 +161,8 @@ export function diagnosticarEnvio(row: SubmissionRowT3): {
     }
   }
   return {
-    codigo: String(row.answers['Código'] ?? row.answers.codigo ?? '').trim().toUpperCase(),
-    equipo: equipoDeRespuesta(row.answers),
+    codigo,
+    equipo: equipoDeRespuesta(row.answers, limiteEquipos(roomId)),
     veredictos: veredictosDeRespuesta(row.answers),
     sinMapear,
   }
@@ -232,7 +239,7 @@ export function getRoomResultsT3(
     if (code.replace(/-T3-EQ$/, '') !== roomId) continue
 
     salida.responses++
-    const equipo = equipoDeRespuesta(row.answers)
+    const equipo = equipoDeRespuesta(row.answers, limiteEquipos(roomId))
     if (equipo === null) {
       salida.quality.sinEquipo++
       continue

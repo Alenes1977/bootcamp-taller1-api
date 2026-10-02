@@ -127,8 +127,9 @@ Etiquetas de preguntas que deben coincidir con Google Forms / `items-comprobacio
 
 `equipos` va en orden de mesa y `puntuacion` en orden de clasificación, ya con el desempate
 aplicado: a igualdad de puntos, primero quien haya acusado en falso menos veces.
-Se admiten equipos del 1 al 14, como en el formulario compartido de Tally, incluidos los
-equipos de reserva. La app determina cuántos equipos se esperan en cada aula.
+Se admiten equipos del 1 al 14, incluidos los equipos de reserva, salvo en el aula 006,
+que tiene trece mesas. Un número fuera del reparto suma una incidencia y no se publica
+en la matriz. La app determina cuántos equipos se esperan en cada aula.
 
 Tres decisiones del procesador que conviene conocer:
 
