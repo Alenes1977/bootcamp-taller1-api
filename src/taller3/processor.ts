@@ -12,7 +12,8 @@ import { esDefectuoso, FRAGMENTOS, puntosDe, type Letra } from './solucionario.j
 
 export const CODE_RE = new RegExp(`^(${ROOM_IDS.join('|')})-T3-EQ$`)
 
-export const EQUIPOS_POR_AULA = 10
+/** Máximo del formulario compartido: incluye equipos de reserva. */
+export const EQUIPOS_POR_AULA = 14
 
 export interface SubmissionRowT3 {
   email: string
@@ -257,4 +258,3 @@ export function getRoomResultsT3(
   salida.puntuacion = clasificar(salida.equipos)
   return salida
 }
-

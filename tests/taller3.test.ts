@@ -80,6 +80,28 @@ describe('lectura de lo que manda Tally', () => {
 })
 
 describe('procesador Taller 3', () => {
+  it('incluye los catorce equipos del formulario en la matriz y la clasificación', () => {
+    const rows = Array.from({ length: 14 }, (_, indice) =>
+      envio(indice + 1, todos('c'), { code: '6-T3-EQ' }),
+    )
+    const aula = getRoomResultsT3(rows, '6', fecha)
+    expect(aula.entregados).toBe(14)
+    expect(aula.equipos.map((equipo) => equipo.equipo)).toEqual(
+      Array.from({ length: 14 }, (_, indice) => indice + 1),
+    )
+    expect(aula.puntuacion).toHaveLength(14)
+    expect(aula.puntuacion.every((equipo) => equipo.respondidos === 20)).toBe(true)
+    expect(aula.quality.sinEquipo).toBe(0)
+    expect(diagnosticarEnvio(rows[13]).equipo).toBe(14)
+  })
+
+  it('sigue descartando números de equipo fuera del formulario', () => {
+    const rows = [0, 15, 1.5].map((equipo) => envio(equipo, todos('c')))
+    const aula = getRoomResultsT3(rows, '2', fecha)
+    expect(aula.entregados).toBe(0)
+    expect(aula.quality.sinEquipo).toBe(3)
+  })
+
   it('coloca a cada equipo en su aula y no en las demás', () => {
     const rows = [envio(1, todos('c')), envio(2, todos('a'), { code: '101-T3-EQ' })]
     expect(getRoomResultsT3(rows, '2', fecha).entregados).toBe(1)
